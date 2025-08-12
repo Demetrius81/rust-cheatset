@@ -4,6 +4,8 @@
 
 [Полная шпаргалка по Rust — синтаксис, инициализация, функции](README.md)
 
+[Вопросы к собеседованию Rust разработчика 2023](questions_2023.md)
+
 [Actix-web — энциклопедия](actix_web_cheatset.md)
 
 [Diesel ORM — полная шпаргалка (Rust)](diesel.md)

@@ -4,6 +4,8 @@
 
 [Полная шпаргалка по Rust — синтаксис, инициализация, функции](README.md)
 
+[Вопросы к собеседованию Rust разработчика 2023](questions_2023.md)
+
 [Rust — Шпаргалка по `Vec` и `Iterator`](rust_vec_iterator_cheatsheet.md)
 
 [Actix-web — энциклопедия](actix_web_cheatset.md)
