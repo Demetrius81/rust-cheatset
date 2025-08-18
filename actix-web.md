@@ -173,3 +173,193 @@
 [6]: https://www.reddit.com/r/rust/comments/k28w0v/a_tutorial_for_websockets_in_actix_web/?utm_source=chatgpt.com "A tutorial for websockets in actix web! : r/rust"
 [7]: https://blog.logrocket.com/actix-web-adoption-guide/?utm_source=chatgpt.com "Actix Web adoption guide: Overview, examples, and ..."
 [8]: https://masteringbackend.com/posts/actix-web-the-ultimate-guide?utm_source=chatgpt.com "Actix Web: The Ultimate Guide (2023)"
+
+---
+
+---
+
+---
+
+Пример базового API на `actix-web`, который использует ранее созданный репозиторий для доступа к базе данных PostgreSQL. В этом примере реализованы основные CRUD-операции для ресурса `User`.
+
+---
+
+## 1. Обновление зависимостей
+
+Добавьте в `Cargo.toml`:
+
+```toml
+[dependencies]
+actix-web = "4"
+diesel = { version = "2.0.0", features = ["postgres"] }
+dotenvy = "0.15"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+```
+
+---
+
+## 2. Структура проекта
+
+Обновим структуру, чтобы включить API:
+
+```
+src/
+├── main.rs
+├── schema.rs
+├── models.rs
+├── repository.rs
+└── handlers.rs
+```
+
+---
+
+## 3. Реализация API в `src/handlers.rs`
+
+Создайте файл `src/handlers.rs`:
+
+```rust
+use actix_web::{web, HttpResponse, Responder};
+use crate::repository::UserRepository;
+use crate::models::{User, NewUser};
+use diesel::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize)]
+struct ApiResponse<T> {
+    data: T,
+}
+
+// Создать пользователя
+#[derive(Deserialize)]
+struct CreateUserRequest {
+    name: String,
+    email: String,
+}
+
+pub async fn create_user(
+    repo: web::Data<UserRepository>,
+    info: web::Json<CreateUserRequest>,
+) -> impl Responder {
+    let user = repo.create(&info.name, &info.email);
+    match user {
+        Ok(u) => HttpResponse::Ok().json(ApiResponse { data: u }),
+        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+    }
+}
+
+// Получить всех пользователей
+pub async fn get_users(repo: web::Data<UserRepository>) -> impl Responder {
+    match repo.get_all() {
+        Ok(users) => HttpResponse::Ok().json(ApiResponse { data: users }),
+        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+    }
+}
+
+// Получить пользователя по id
+pub async fn get_user_by_id(
+    repo: web::Data<UserRepository>,
+    path: web::Path<i32>,
+) -> impl Responder {
+    let user_id = path.into_inner();
+    match repo.get_by_id(user_id) {
+        Ok(user) => HttpResponse::Ok().json(ApiResponse { data: user }),
+        Err(diesel::result::Error::NotFound) => HttpResponse::NotFound().body("User not found"),
+        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+    }
+}
+
+// Обновить имя пользователя по id
+#[derive(Deserialize)]
+struct UpdateUserName {
+    name: String,
+}
+
+pub async fn update_user_name(
+    repo: web::Data<UserRepository>,
+    path: web::Path<i32>,
+    info: web::Json<UpdateUserName>,
+) -> impl Responder {
+    let user_id = path.into_inner();
+    match repo.update_name(user_id, &info.name) {
+        Ok(user) => HttpResponse::Ok().json(ApiResponse { data: user }),
+        Err(diesel::result::Error::NotFound) => HttpResponse::NotFound().body("User not found"),
+        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+    }
+}
+
+// Удалить пользователя по id
+pub async fn delete_user(
+    repo: web::Data<UserRepository>,
+    path: web::Path<i32>,
+) -> impl Responder {
+    let user_id = path.into_inner();
+    match repo.delete(user_id) {
+        Ok(count) => {
+            if count > 0 {
+                HttpResponse::Ok().body("User deleted")
+            } else {
+                HttpResponse::NotFound().body("User not found")
+            }
+        }
+        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+    }
+}
+```
+
+---
+
+## 4. Основной файл `src/main.rs`
+
+Обновите `main.rs`:
+
+```rust
+use actix_web::{web, App, HttpServer};
+use dotenvy::dotenv;
+use std::env;
+
+mod schema;
+mod models;
+mod repository;
+mod handlers;
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    dotenv().ok();
+
+    // Установление соединения с базой данных
+    let database_url =
+        env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    
+    // Создаем пул соединений (можно использовать diesel r2d2 или просто одно соединение)
+    
+    // Для простоты используем одно соединение:
+    let conn = repository::<diesel_async_postgres>::establish_connection(&database_url);
+    
+    // Оборачиваем в Arc или Data для передачи в обработчики
+    let repo = web::Data::new(repository::<diesel_async_postgres>(&database_url));
+
+    println!("Starting server at http://127.0.0.1:8080");
+
+    HttpServer::new(move || {
+        App::new()
+            .app_data(repo.clone())
+            .service(
+                web scope("/api")
+                    .route("/users", web.post().to(handlers::create_user))
+                    .route("/users", web.get().to(handlers::get_users))
+                    .route("/users/{id}", web.get().to(handlers::get_user_by_id))
+                    .route("/users/{id}", web->put().to(handlers->update_user_name))
+                    .route("/users/{id}", web->delete().to(handlers->delete_user))
+            )
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
+}
+```
+
+**Обратите внимание:** В реальности лучше использовать пул соединений (например, через `r2d2`) и асинхронные драйверы (`diesel_async`). Для простоты здесь показан синхронный пример.
+
+---
